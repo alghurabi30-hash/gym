@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gym Tracker Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f1115;
+            --surface-color: #1a1d24;
+            --surface-hover: #232730;
+            --primary-color: #f97316;
+            --primary-hover: #ea580c;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #2d3139;
+            --danger-color: #ef4444;
+            --success-color: #10b981;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --transition: all 0.3s ease;
+        }
+
+        [data-theme="light"] {
+            --bg-color: #f1f5f9;
+            --surface-color: #ffffff;
+            --surface-hover: #f8fafc;
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Tajawal', sans-serif; }
+        
+        body {
+            background-color: var(--bg-color); color: var(--text-main);
+            transition: var(--transition); min-height: 100vh;
+        }
+        button, input, textarea { font-family: inherit; outline: none; border: none; }
+
+        .container { max-width: 768px; margin: 0 auto; padding: 0 20px 100px 20px; }
+        
+        /* الثبات العلوي */
+        .header-top { 
+            position: sticky; top: 0; z-index: 100; 
+            background-color: var(--bg-color);
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 20px 0 15px 0; margin-bottom: 20px; 
+            border-bottom: 1px solid var(--border-color); 
+        }
+        .header-title { font-size: 1.5rem; font-weight: 800; color: var(--primary-color); display: flex; align-items: center; gap: 8px;}
+        .header-actions { display: flex; gap: 8px; }
+        .icon-btn {
+            background: var(--surface-color); color: var(--text-main); width: 40px; height: 40px;
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            font-size: 1.2rem; border: 1px solid var(--border-color); transition: var(--transition); cursor: pointer;
+        }
+        .icon-btn:hover { background: var(--surface-hover); transform: scale(1.05); }
+
+        .streak-container {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+            border: 1px solid var(--success-color); border-radius: var(--radius-md);
+            padding: 15px; text-align: center; margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.1);
+        }
+        .streak-title { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px; }
+        .streak-value { font-size: 1.3rem; font-weight: 800; color: var(--success-color); }
+
+        .view { display: none; opacity: 0; transform: translateX(20px); transition: opacity 0.4s ease, transform 0.4s ease; }
+        .view.active { display: block; opacity: 1; transform: translateX(0); }
+
+        .days-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
+        .day-card {
+            background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--radius-lg);
+            padding: 25px 15px; text-align: center; font-size: 1.2rem; font-weight: 700; cursor: pointer; transition: var(--transition);
+        }
+        .day-card:hover { border-color: var(--primary-color); transform: translateY(-3px); box-shadow: var(--shadow-md); }
+        .day-card span.count { display: block; font-size: 0.85rem; color: var(--text-muted); margin-top: 8px; }
+        .day-card.current-day { border-color: var(--success-color); background: rgba(16, 185, 129, 0.05); position: relative; }
+        .day-card.current-day::before {
+            content: 'اليوم'; position: absolute; top: -10px; right: -10px;
+            background: var(--success-color); color: #fff; font-size: 0.7rem; padding: 4px 10px; border-radius: 20px; font-weight: 800;
+        }
+
+        .view-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
+        .back-btn { background: var(--surface-color); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: var(--transition); }
+        
+        /* تصميم الكروت الجديد */
+        .exercise-card { background: var(--surface-color); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 15px 20px; margin-bottom: 15px; cursor: pointer; transition: var(--transition); position: relative; overflow: hidden; }
+        .exercise-card:hover { border-color: var(--primary-color); }
+        
+        /* التعديل: اسم التمرين بالأعلى والبيانات بأسفله */
+        .ex-header-compact { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+        .ex-title { font-size: 1.15rem; font-weight: 700; color: var(--text-main); }
+        
+        /* التعديل: فصل التعدادات عن الوزن بلون مختلف */
+        .ex-badges { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .badge { font-size: 0.95rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; direction: ltr; display: inline-block; }
+        .badge-reps { background: var(--bg-color); color: var(--primary-color); border: 1px solid var(--border-color); }
+        .badge-weight { background: rgba(16, 185, 129, 0.1); color: var(--success-color); border: 1px solid var(--success-color); }
+        
+        /* تفاصيل التمرين المنبثقة */
+        .ex-details { max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s ease; padding: 0 5px; }
+        .ex-details.active { max-height: 600px; opacity: 1; padding-top: 15px; margin-top: 15px; border-top: 1px dashed var(--border-color); }
+        
+        .ex-mini-actions { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 10px; }
+        .ex-mini-actions button { background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-muted); width: 30px; height: 30px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+        .ex-mini-actions button:hover { color: var(--text-main); border-color: var(--text-main); }
+        .ex-image { width: 100%; border-radius: var(--radius-md); margin-bottom: 15px; max-height: 200px; object-fit: contain; background: #000; }
+        
+        .weight-input-compact { display: flex; gap: 10px; }
+        .weight-input-compact input { flex: 1; margin: 0; }
+
+        /* الأزرار العائمة السفلية الثابتة */
+        .fixed-bottom-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: var(--surface-color); border-top: 1px solid var(--border-color);
+            padding: 15px 20px; display: flex; gap: 15px; z-index: 100;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.3); justify-content: center;
+        }
+        .bottom-bar-content { width: 100%; max-width: 728px; display: flex; gap: 15px; margin: 0 auto; }
+        .btn-start-fixed { flex: 1; background: var(--success-color); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2); justify-content: center; }
+        .fab-fixed { 
+            width: 50px; height: 50px; border-radius: 50%; background: var(--primary-color); 
+            color: white; font-size: 1.5rem; display: flex; justify-content: center; align-items: center; 
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4); cursor: pointer; flex-shrink: 0; transition: 0.2s;
+        }
+        .fab-fixed:hover { transform: scale(1.1); }
+
+        .btn-primary { background: var(--primary-color); color: #fff; padding: 12px 20px; border-radius: var(--radius-md); font-weight: 700; cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 8px; font-size: 1.1rem; justify-content: center;}
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-success { background: var(--success-color); }
+        .btn-danger { background: var(--danger-color); }
+        .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); }
+        .input-styled { background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px; border-radius: var(--radius-md); width: 100%; margin-bottom: 15px; }
+
+        /* واجهة التمرين ملء الشاشة */
+        .workout-fullscreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color); z-index: 2000; overflow-y: auto;
+            padding: 20px; display: none; flex-direction: column;
+        }
+        .workout-fullscreen.active { display: flex; animation: slideUp 0.3s forwards; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        .workout-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .workout-progress { display: flex; gap: 5px; margin-bottom: 20px; }
+        .progress-dot { flex: 1; height: 6px; background: var(--border-color); border-radius: 3px; transition: 0.3s; }
+        .progress-dot.active { background: var(--primary-color); }
+        
+        .active-ex-card { background: var(--surface-color); padding: 25px 20px; border-radius: var(--radius-lg); border: 2px solid var(--primary-color); box-shadow: 0 10px 30px rgba(249, 115, 22, 0.1); margin-bottom: 25px; flex: 1; }
+        .active-ex-title { font-size: 1.8rem; color: var(--primary-color); margin-bottom: 15px; font-weight: 800; text-align: center; }
+        .active-badges { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .active-gif { width: 100%; border-radius: var(--radius-md); margin-bottom: 20px; max-height: 250px; object-fit: contain; background: #000; }
+        
+        .workout-inputs { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
+        .timer-btn { background: var(--bg-color); border: 1px solid var(--primary-color); color: var(--primary-color); padding: 12px; border-radius: var(--radius-md); font-weight: bold; cursor: pointer; text-align: center; font-size: 1.1rem; transition: 0.3s; }
+        .timer-btn.active { background: var(--primary-color); color: white; }
+
+        .workout-controls { display: flex; gap: 15px; margin-top: auto; padding-bottom: 20px;}
+        .workout-controls button { flex: 1; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: none; justify-content: center; align-items: center; z-index: 3000; opacity: 0; transition: 0.3s; padding: 20px; }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        .modal-content { background: var(--surface-color); width: 100%; max-width: 400px; border-radius: var(--radius-lg); padding: 25px; transform: translateY(20px); transition: 0.3s; border: 1px solid var(--border-color); }
+        .modal-overlay.active .modal-content { transform: translateY(0); }
+        
+        .toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none;}
+        .toast { background: var(--surface-color); color: var(--text-main); padding: 15px 20px; border-radius: var(--radius-md); border-right: 4px solid var(--primary-color); display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow-md); animation: slideDown 0.3s forwards; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="container">
+        <header class="header-top">
+            <div class="header-title">🏋️ Gym Tracker Pro</div>
+            <div class="header-actions">
+                <button class="icon-btn" onclick="UILayer.openModal('hungerModal')">🍔</button>
+                <button class="icon-btn" onclick="AppController.toggleTheme()">🌓</button>
+                <button class="icon-btn" onclick="UILayer.openModal('settingsModal')">⚙️</button>
+            </div>
+        </header>
+
+        <main id="view-days" class="view active">
+            <div class="streak-container" id="streakContainer">
+                <div class="streak-title">⏳ رحلتك الرياضية مستمرة منذ</div>
+                <div class="streak-value" id="streakDisplay">جاري الحساب...</div>
+            </div>
+            <div class="days-grid" id="daysGridContainer"></div>
+        </main>
+
+        <main id="view-exercises" class="view">
+            <div class="view-header">
+                <button class="back-btn" onclick="AppController.switchView('view-days')"><span>➔</span> رجوع</button>
+                <h2 id="currentDayTitle" style="color: var(--primary-color);">تمارين اليوم</h2>
+            </div>
+            
+            <div id="exercisesContainer"></div>
+        </main>
+    </div>
+
+    <div class="fixed-bottom-bar" id="exercisesBottomBar" style="display: none;">
+        <div class="bottom-bar-content">
+            <button class="btn-primary btn-start-fixed" onclick="WorkoutController.start()">🚀 ابدأ التمرين</button>
+            <div class="fab-fixed" onclick="AppController.openExerciseModal()">➕</div>
+        </div>
+    </div>
+
+    <div id="workoutFullscreen" class="workout-fullscreen">
+        <div class="workout-header">
+            <h2 style="color: var(--success-color); margin: 0;">وضع التركيز</h2>
+            <button class="back-btn" onclick="WorkoutController.exit()"><span>✖</span> إنهاء</button>
+        </div>
+        
+        <div class="workout-progress" id="workoutProgress"></div>
+        
+        <div class="active-ex-card" id="activeExCard">
+            </div>
+
+        <div class="workout-controls">
+            <button class="btn-primary btn-outline" onclick="WorkoutController.prev()">السابق</button>
+            <button class="btn-primary btn-success" onclick="WorkoutController.next()" id="nextWorkoutBtn">التالي</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="hungerModal">
+        <div class="modal-content" style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 10px;">🍔</div>
+            <h2 style="color: var(--primary-color); margin-bottom: 10px;">تشعر بالجوع؟</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px; line-height: 1.6;">
+                لا تدع الجوع يدمر مكتسباتك العضلية! تناول وجبة بروتين أو كربوهيدرات معقدة لتعطيك طاقة قبل التمرين.
+            </p>
+            <button class="btn-primary" onclick="UILayer.closeModal('hungerModal')">حسناً، فهمت 🥩</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal-content">
+            <h2 style="color: var(--primary-color); margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">⚙️ الإعدادات والسحابة</h2>
+            <div style="background: var(--bg-color); padding: 15px; border-radius: var(--radius-md); margin-bottom: 20px; border: 1px dashed var(--success-color);">
+                <h3 style="margin-bottom: 10px; font-size: 1.1rem;">☁️ المزامنة مع Google</h3>
+                <div id="authStatus" style="font-weight: bold; margin-bottom: 15px; color: var(--danger-color);">حالتك: غير متصل</div>
+                <button class="btn-primary" style="background: #4285F4;" onclick="CloudAuth.login()" id="loginBtn">تسجيل الدخول</button>
+                <button class="btn-primary btn-danger" style="display: none; margin-top: 10px;" onclick="CloudAuth.logout()" id="logoutBtn">تسجيل الخروج</button>
+            </div>
+            <button class="btn-primary" style="background: var(--surface-hover); color: var(--text-main); margin-bottom: 10px;" onclick="AppController.requestNotifications()">🔔 تفعيل التذكير اليومي</button>
+            <button class="btn-primary btn-outline" onclick="UILayer.closeModal('settingsModal')">إغلاق</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="exerciseModal">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+            <h2 id="exModalTitle" style="color: var(--primary-color); margin-bottom: 15px;">إضافة تمرين</h2>
+            <input type="hidden" id="exIdInput">
+            <input type="text" id="exName" class="input-styled" placeholder="اسم التمرين *">
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="exSets" class="input-styled" placeholder="الجلسات *">
+                <input type="number" id="exReps" class="input-styled" placeholder="التكرارات *">
+            </div>
+            <textarea id="exDesc" class="input-styled" rows="2" placeholder="ملاحظات (اختياري)"></textarea>
+            <input type="url" id="exGif" class="input-styled" placeholder="رابط صورة GIF (اختياري)">
+            
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn-primary btn-outline" onclick="UILayer.closeModal('exerciseModal')">إلغاء</button>
+                <button class="btn-primary" onclick="AppController.saveExercise()">حفظ</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CloudAuth = {
+            db: null, user: null,
+            init() {
+                const firebaseConfig = { apiKey: "YOUR_API_KEY", authDomain: "YOUR_PROJECT.firebaseapp.com", projectId: "YOUR_PROJECT" };
+                try {
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(firebaseConfig);
+                        this.db = firebase.firestore();
+                        firebase.auth().onAuthStateChanged((user) => {
+                            if (user) {
+                                this.user = user;
+                                document.getElementById('authStatus').innerText = `✅ متصل: ${user.displayName}`;
+                                document.getElementById('authStatus').style.color = "var(--success-color)";
+                                document.getElementById('loginBtn').style.display = "none";
+                                document.getElementById('logoutBtn').style.display = "flex";
+                                this.syncDown();
+                            } else {
+                                this.user = null;
+                                document.getElementById('authStatus').innerText = `❌ غير متصل`;
+                                document.getElementById('authStatus').style.color = "var(--danger-color)";
+                                document.getElementById('loginBtn').style.display = "flex";
+                                document.getElementById('logoutBtn').style.display = "none";
+                            }
+                        });
+                    }
+                } catch(e) { console.log("Local Mode"); }
+            },
+            login() { if(firebase.apps.length) firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(err => UILayer.showToast("فشل الدخول", "error")); else UILayer.showToast("أضف Firebase Config", "error"); },
+            logout() { if(firebase.auth) firebase.auth().signOut(); },
+            syncUp(data) {
+                if(!this.user || !this.db) return;
+                this.db.collection("users").doc(this.user.uid).set({ gymData: JSON.stringify(data), lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+            },
+            syncDown() {
+                if(!this.user || !this.db) return;
+                this.db.collection("users").doc(this.user.uid).get().then((doc) => {
+                    if(doc.exists && doc.data().gymData) {
+                        const cloudData = JSON.parse(doc.data().gymData);
+                        AppController.data = cloudData;
+                        StorageLayer.saveLocal(cloudData);
+                        AppController.initUI();
+                        UILayer.showToast("تم مزامنة بياناتك! ☁️", "success");
+                    }
+                });
+            }
+        };
+
+        const StorageLayer = {
+            DATA_KEY: 'GymTrackerPro_V2',
+            getInitialStructure() { return { settings: { theme: 'dark' }, days: { saturday: { name: 'السبت', exercises: [] }, sunday: { name: 'الأحد', exercises: [] }, monday: { name: 'الإثنين', exercises: [] }, tuesday: { name: 'الثلاثاء', exercises: [] }, wednesday: { name: 'الأربعاء', exercises: [] }, thursday: { name: 'الخميس', exercises: [] }, friday: { name: 'الجمعة', exercises: [] } } }; },
+            load() { const stored = localStorage.getItem(this.DATA_KEY); return stored ? JSON.parse(stored) : this.getInitialStructure(); },
+            saveLocal(data) { localStorage.setItem(this.DATA_KEY, JSON.stringify(data)); CloudAuth.syncUp(data); }
+        };
+
+        const UILayer = {
+            showToast(message, type = 'success') {
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                toast.className = `toast`;
+                toast.style.borderRightColor = type === 'success' ? 'var(--success-color)' : 'var(--danger-color)';
+                toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span> <span>${message}</span>`;
+                container.appendChild(toast);
+                setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+            },
+            openModal(id) { document.getElementById(id).classList.add('active'); },
+            closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        };
+
+        const WorkoutController = {
+            exercises: [], currentIndex: 0, timerInterval: null, timeLeft: 0,
+            
+            start() {
+                this.exercises = AppController.data.days[AppController.currentDayKey].exercises;
+                if(this.exercises.length === 0) { UILayer.showToast("لا توجد تمارين!", "error"); return; }
+                this.currentIndex = 0;
+                document.getElementById('workoutFullscreen').classList.add('active');
+                this.renderCurrent();
+            },
+            
+            exit() { 
+                document.getElementById('workoutFullscreen').classList.remove('active'); 
+                this.stopTimer();
+                AppController.renderExercisesList(); // Refresh main list to show any updated weights
+            },
+            
+            renderCurrent() {
+                this.stopTimer();
+                const ex = this.exercises[this.currentIndex];
+                const card = document.getElementById('activeExCard');
+                const progress = document.getElementById('workoutProgress');
+                const nextBtn = document.getElementById('nextWorkoutBtn');
+
+                progress.innerHTML = '';
+                this.exercises.forEach((_, i) => progress.innerHTML += `<div class="progress-dot ${i <= this.currentIndex ? 'active' : ''}"></div>`);
+
+                const weightStr = ex.maxWeight ? `${ex.maxWeight} كغ` : '- كغ';
+
+                card.innerHTML = `
+                    <div class="active-ex-title">${ex.name}</div>
+                    <div class="active-badges">
+                        <span class="badge badge-reps">${ex.sets} × ${ex.reps}</span>
+                        <span class="badge badge-weight">${weightStr}</span>
+                    </div>
+                    ${ex.gifUrl ? `<img src="${ex.gifUrl}" class="active-gif" onerror="this.style.display='none'">` : ''}
+                    ${ex.desc ? `<div style="color: var(--text-muted); margin-bottom: 20px; text-align: center;">📝 ${ex.desc}</div>` : ''}
+                    
+                    <div class="workout-inputs">
+                        <input type="number" id="workoutWeightInput" class="input-styled" placeholder="سجل الوزن الجديد هنا (كغم)" step="0.5" style="text-align: center; font-weight: bold; font-size: 1.1rem; margin: 0;">
+                        <div class="timer-btn" id="workoutTimerBtn" onclick="WorkoutController.startTimer()">⏱️ ابدأ الاستراحة (60ث)</div>
+                    </div>
+                `;
+
+                if (this.currentIndex === this.exercises.length - 1) {
+                    nextBtn.innerText = "🎉 إنهاء";
+                    nextBtn.onclick = () => { this.saveCurrentWeight(); UILayer.showToast("عاش وحش! 🏆", "success"); this.exit(); };
+                } else {
+                    nextBtn.innerText = "التالي ➔";
+                    nextBtn.onclick = () => { this.saveCurrentWeight(); this.next(); };
+                }
+            },
+            
+            saveCurrentWeight() {
+                const input = document.getElementById('workoutWeightInput');
+                if(!input || input.value === '') return;
+                const val = parseFloat(input.value);
+                if(isNaN(val) || val <= 0) return;
+                
+                const ex = this.exercises[this.currentIndex];
+                const oldMax = parseFloat(ex.maxWeight) || 0;
+                ex.maxWeight = val;
+                StorageLayer.saveLocal(AppController.data);
+                
+                if(val > oldMax && oldMax !== 0) UILayer.showToast("🎉 تم تسجيل رقم قياسي جديد!", "success");
+            },
+
+            startTimer() {
+                this.stopTimer();
+                this.timeLeft = 60;
+                const btn = document.getElementById('workoutTimerBtn');
+                btn.classList.add('active');
+                btn.innerText = `⏳ متبقي ${this.timeLeft} ثانية`;
+                
+                this.timerInterval = setInterval(() => {
+                    this.timeLeft--;
+                    if(this.timeLeft <= 0) {
+                        this.stopTimer();
+                        btn.innerText = "🔔 انتهت الراحة!";
+                        btn.classList.remove('active');
+                        if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
+                    } else {
+                        btn.innerText = `⏳ متبقي ${this.timeLeft} ثانية`;
+                    }
+                }, 1000);
+            },
+            
+            stopTimer() {
+                if(this.timerInterval) clearInterval(this.timerInterval);
+                const btn = document.getElementById('workoutTimerBtn');
+                if(btn) {
+                    btn.classList.remove('active');
+                    btn.innerText = "⏱️ ابدأ الاستراحة (60ث)";
+                }
+            },
+
+            next() { if(this.currentIndex < this.exercises.length - 1) { this.currentIndex++; this.renderCurrent(); } },
+            prev() { if(this.currentIndex > 0) { this.currentIndex--; this.renderCurrent(); } }
+        };
+
+        const AppController = {
+            data: null, currentDayKey: null, startDate: new Date('2026-03-25T00:00:00'),
+            init() { CloudAuth.init(); this.data = StorageLayer.load(); this.initUI(); },
+            initUI() {
+                if(this.data.settings.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+                this.calculateStreak(); this.renderDaysGrid();
+            },
+            toggleTheme() {
+                this.data.settings.theme = this.data.settings.theme === 'dark' ? 'light' : 'dark';
+                if(this.data.settings.theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+                else document.documentElement.removeAttribute('data-theme');
+                StorageLayer.saveLocal(this.data);
+            },
+            switchView(viewId) {
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.getElementById(viewId).classList.add('active');
+                
+                const bottomBar = document.getElementById('exercisesBottomBar');
+                if (viewId === 'view-exercises') {
+                    bottomBar.style.display = 'flex';
+                } else {
+                    bottomBar.style.display = 'none';
+                }
+            },
+            calculateStreak() {
+                const now = new Date();
+                const diffTime = Math.abs(now - this.startDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                const years = Math.floor(diffDays / 365), months = Math.floor((diffDays % 365) / 30), days = (diffDays % 365) % 30;
+                let text = "";
+                if(years > 0) text += `${years} سنة و `; if(months > 0) text += `${months} شهر و `; text += `${days} يوم 🔥`;
+                document.getElementById('streakDisplay').innerText = text;
+            },
+            renderDaysGrid() {
+                const container = document.getElementById('daysGridContainer'); container.innerHTML = '';
+                const todayIdx = new Date().getDay(), dayMap = {6:'saturday', 0:'sunday', 1:'monday', 2:'tuesday', 3:'wednesday', 4:'thursday', 5:'friday'};
+                const currentDayName = dayMap[todayIdx];
+                for (const [key, dayData] of Object.entries(this.data.days)) {
+                    container.innerHTML += `
+                        <div class="day-card ${key === currentDayName ? 'current-day' : ''}" onclick="AppController.openDay('${key}')">
+                            ${dayData.name} <span class="count">${dayData.exercises.length > 0 ? dayData.exercises.length + ' تمارين' : 'راحة'}</span>
+                        </div>`;
+                }
+            },
+            openDay(dayKey) {
+                this.currentDayKey = dayKey;
+                document.getElementById('currentDayTitle').innerText = `تمارين يوم ${this.data.days[dayKey].name}`;
+                this.renderExercisesList(); this.switchView('view-exercises');
+            },
+            
+            toggleExercise(index) {
+                document.querySelectorAll('.ex-details').forEach((el, i) => {
+                    if (i === index) el.classList.toggle('active');
+                    else el.classList.remove('active');
+                });
+            },
+
+            quickSaveWeight(index) {
+                const input = document.getElementById(`quickWeight_${index}`);
+                const val = parseFloat(input.value);
+                if(isNaN(val) || val <= 0) { UILayer.showToast("وزن غير صحيح", "error"); return; }
+                
+                const ex = this.data.days[this.currentDayKey].exercises[index];
+                const oldMax = parseFloat(ex.maxWeight) || 0;
+                ex.maxWeight = val;
+                StorageLayer.saveLocal(this.data);
+                
+                document.getElementById(`badge_weight_${index}`).innerText = `${ex.maxWeight} كغ`;
+                input.value = '';
+                
+                if(val > oldMax && oldMax !== 0) UILayer.showToast("🎉 رقم قياسي جديد!", "success");
+                else UILayer.showToast("تم حفظ الوزن بنجاح", "success");
+            },
+
+            renderExercisesList() {
+                const container = document.getElementById('exercisesContainer');
+                const exList = this.data.days[this.currentDayKey].exercises;
+                container.innerHTML = '';
+                if (exList.length === 0) {
+                    container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted);">لا توجد تمارين. اضغط ➕ للإضافة.</div>`;
+                    return;
+                }
+                exList.forEach((ex, index) => {
+                    const weightStr = ex.maxWeight ? `${ex.maxWeight} كغ` : '- كغ';
+                    container.innerHTML += `
+                        <div class="exercise-card" onclick="AppController.toggleExercise(${index})">
+                            <div class="ex-header-compact">
+                                <div class="ex-title">${index + 1}. ${ex.name}</div>
+                                <div class="ex-badges">
+                                    <span class="badge badge-reps">${ex.sets} × ${ex.reps}</span>
+                                    <span class="badge badge-weight" id="badge_weight_${index}">${weightStr}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="ex-details" id="ex_details_${index}" onclick="event.stopPropagation()">
+                                <div class="ex-mini-actions">
+                                    <button onclick="AppController.openExerciseModal(${index})">✏️</button>
+                                    <button onclick="AppController.deleteExercise(${index})" style="color:var(--danger-color);">🗑️</button>
+                                </div>
+                                ${ex.gifUrl ? `<img src="${ex.gifUrl}" class="ex-image" onerror="this.style.display='none'">` : ''}
+                                
+                                <div class="weight-input-compact">
+                                    <input type="number" id="quickWeight_${index}" class="input-styled" placeholder="وزن جديد (كغم)" step="0.5">
+                                    <button class="btn-primary" style="margin-bottom: 15px; padding: 10px 15px;" onclick="AppController.quickSaveWeight(${index})">حفظ</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            },
+            openExerciseModal(index = null) {
+                document.getElementById('exIdInput').value = index !== null ? index : '';
+                if(index !== null) {
+                    const ex = this.data.days[this.currentDayKey].exercises[index];
+                    document.getElementById('exName').value = ex.name; document.getElementById('exSets').value = ex.sets; document.getElementById('exReps').value = ex.reps; document.getElementById('exDesc').value = ex.desc || ''; document.getElementById('exGif').value = ex.gifUrl || '';
+                } else {
+                    document.getElementById('exName').value = ''; document.getElementById('exSets').value = ''; document.getElementById('exReps').value = ''; document.getElementById('exDesc').value = ''; document.getElementById('exGif').value = '';
+                }
+                UILayer.openModal('exerciseModal');
+            },
+            saveExercise() {
+                const name = document.getElementById('exName').value;
+                if(!name) { UILayer.showToast('الاسم مطلوب', 'error'); return; }
+                const newEx = { name: name, sets: document.getElementById('exSets').value || 3, reps: document.getElementById('exReps').value || 10, desc: document.getElementById('exDesc').value, gifUrl: document.getElementById('exGif').value };
+                const idx = document.getElementById('exIdInput').value;
+                if(idx === '') this.data.days[this.currentDayKey].exercises.push(newEx);
+                else { newEx.maxWeight = this.data.days[this.currentDayKey].exercises[idx].maxWeight; this.data.days[this.currentDayKey].exercises[idx] = newEx; }
+                StorageLayer.saveLocal(this.data); this.renderExercisesList(); this.renderDaysGrid(); UILayer.closeModal('exerciseModal');
+            },
+            deleteExercise(index) {
+                if(confirm('متأكد من الحذف؟')) { this.data.days[this.currentDayKey].exercises.splice(index, 1); StorageLayer.saveLocal(this.data); this.renderExercisesList(); this.renderDaysGrid(); }
+            },
+            requestNotifications() {
+                if (!("Notification" in window)) UILayer.showToast("متصفحك لا يدعم الإشعارات", "error");
+                else if (Notification.permission === "granted") UILayer.showToast("الإشعارات مفعلة ✅");
+                else if (Notification.permission !== "denied") Notification.requestPermission().then(p => { if (p === "granted") UILayer.showToast("تم تفعيل الإشعارات ✅"); });
+            }
+        };
+
+        window.onload = () => AppController.init();
+        window.onclick = (e) => { if(e.target.classList.contains('modal-overlay')) e.target.classList.remove('active'); }
+    </script>
+</body>
+</html>
