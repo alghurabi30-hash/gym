@@ -467,7 +467,7 @@
                 else document.documentElement.removeAttribute('data-theme');
                 StorageLayer.saveLocal(this.data);
             },
-            switchView(viewId) {
+            switchView(viewId, pushHistory = true) {
                 document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
                 document.getElementById(viewId).classList.add('active');
                 
@@ -476,6 +476,11 @@
                     bottomBar.style.display = 'flex';
                 } else {
                     bottomBar.style.display = 'none';
+                }
+
+                // إضافة الواجهة لسجل النظام حتى يشتغل زر الرجوع
+                if (pushHistory) {
+                    window.history.pushState({ view: viewId }, '', `#${viewId}`);
                 }
             },
             calculateStreak() {
@@ -595,6 +600,25 @@
 
         window.onload = () => AppController.init();
         window.onclick = (e) => { if(e.target.classList.contains('modal-overlay')) e.target.classList.remove('active'); }
+        window.addEventListener('popstate', (event) => {
+            // إذا كان وضع التمرين (الشاشة الكاملة) مفتوح، اغلقه أولاً
+            if (document.getElementById('workoutFullscreen').classList.contains('active')) {
+                WorkoutController.exit();
+                // نمنع الرجوع خطوة أخرى في النظام
+                window.history.pushState({ view: 'view-exercises' }, '', '#view-exercises');
+                return;
+            }
+            
+            // الرجوع للواجهات السابقة (الأيام أو التمارين)
+            if (event.state && event.state.view) {
+                AppController.switchView(event.state.view, false);
+            } else {
+                AppController.switchView('view-days', false);
+            }
+        });
+
+        // تهيئة السجل عند فتح التطبيق لأول مرة
+        window.history.replaceState({ view: 'view-days' }, '', '#view-days');
     </script>
 </body>
 </html>
